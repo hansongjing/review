@@ -1,5 +1,8 @@
 package com.hsj.netty.demo.client;
 
+import com.hsj.netty.demo.client.request.RpcRequest;
+import com.hsj.netty.demo.client.serialize.FastJsonSerialize;
+import com.hsj.netty.demo.client.serialize.serialize;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -28,6 +31,8 @@ public class SimpleClient {
 
     private FixedChannelPool pool;
 
+    private serialize  serialize;
+
 
     protected GenericObjectPool.Config poolConfig;
     protected PoolableObjectFactory factory;
@@ -35,15 +40,15 @@ public class SimpleClient {
     public SimpleClient(String host, int port) {
         this.host = host;
         this.port = port;
+        serialize=new FastJsonSerialize();
     }
 
 
-    public void request(String s) throws Exception{
+    public void request(RpcRequest rpcRequest) throws Exception{
 
        Future<Channel> channelFuture= pool.acquire().syncUninterruptibly().await();
       Channel channel= channelFuture.get();
-      channel.writeAndFlush(Unpooled.copiedBuffer(s+"helo", CharsetUtil.UTF_8));
-
+      channel.writeAndFlush(Unpooled.wrappedBuffer(serialize.serialize(rpcRequest)));
       pool.release(channel);
 
 
@@ -88,9 +93,9 @@ public class SimpleClient {
 
             pool = new FixedChannelPool(b, handler, 20);
 
-            Channel channel = b.connect(host, port).channel(); // (5)
-
-            channel.writeAndFlush(Unpooled.copiedBuffer("hello", CharsetUtil.UTF_8));
+//            Channel channel = b.connect(host, port).channel(); // (5)
+//
+//            channel.writeAndFlush(Unpooled.copiedBuffer("hello", CharsetUtil.UTF_8));
 
     }
 
@@ -99,7 +104,10 @@ public class SimpleClient {
 
 
 
+
+
     public static void main(String args[]) throws Exception {
+        FastJsonSerialize fastJsonSerialize=new FastJsonSerialize();
         String host = "localhost";
         int port = 9003;
 
@@ -109,7 +117,18 @@ public class SimpleClient {
         Executor executor= Executors.newFixedThreadPool(20);
         executor.execute(()->{
             try {
-                simpleClient.request("hansongjiang.");
+                RpcRequest request=RpcRequest.builder()
+                        .rpcId("001")
+                        .version("2.0")
+                        .args(new Object[]{"helllo",25})
+                        .argTypes(new Class[]{String.class,Integer.class})
+                        .build();
+
+
+
+
+                System.out.println(request);
+                simpleClient.request(request);
             } catch (Exception e) {
                 e.printStackTrace();
             }
